@@ -463,5 +463,3 @@ Some things to consider:
  * Think carefully about what `delete` vs. `delete[]` do and why we spent time in CS014 discussing *shallow* vs. *deep* copies.
  * If you get to only (or mostly) "indirectly lost" errors you'll notice that Valgrind doesn't report each one individually. This is because they aren't "lost" so much as "forgotten" by the programmer. If this happens you can turn on `--show-reachable=yes` to show more details about each of those errors.
  
-**Submission**
-You will demonstrate this lab to your TA by running the `lineage` program with Valgrind to a **Memheck-clean**.
