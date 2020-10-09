@@ -1,9 +1,9 @@
 Acknowledgments: This lab has been adapted from [this lab](http://people.cs.ksu.edu/~sherrill/labs/lab05/lineage.cpp) by [Jessica Sherrill](http://people.cs.ksu.edu/~sherrill/) at Kansas State University (current affiliation unknown).
 
 # Memory management
-The ability to dynamically allocated and deallocate memory is one of the strongest features of C++ programming, but the greatest strength can also be the greates weaness. This is certainly true of C++ applications, where memory-handling problems are among the most common bugs.
+The ability to dynamically allocate and deallocate memory is one of the strongest features of C++ programming, but the greatest strength can also be the greatest weakness. This is certainly true of C++ applications, where memory-handling problems are among the most common bugs.
 
-One of the most subtle and hard-to-detect bugs is the memory leak - the failure to properly deallocate memory that was previously allocated. A small memory leak that occurs only once may not be noticed, but programs that leak large amounts of memory, or leak progressively, may display symptoms ranging from poor (and gradually decreasing) performance to running out of memory completely. Worse, a leaking program may use up so much memory that it causes another program to fail, leaving the user with no clude to where the problem truly lies. In addition, even harmless memory leaks may be symptomatic of other problems.
+One of the most subtle and hard-to-detect bugs is the memory leak - the failure to properly deallocate memory that was previously allocated. A small memory leak that occurs only once may not be noticed, but programs that leak large amounts of memory, or leak progressively, may display symptoms ranging from poor (and gradually decreasing) performance to running out of memory completely. Worse, a leaking program may use up so much memory that it causes another program to fail, leaving the user with no clue to where the problem truly lies. In addition, even harmless memory leaks may be symptomatic of other problems.
 ## Valgrind
 [Valgrind](https://valgrind.org/) is an instrumentation framework for building dynamic analysis tools. We will be focusing on the Memcheck tool in their extensive tool suite. 
 
@@ -15,7 +15,7 @@ One of the most subtle and hard-to-detect bugs is the memory leak - the failure 
  * Does bad frees of heap blocks (double frees, mismatched frees).
  * Passes overlapping source and destination memory blocks to `memcpy()` and related functions.
 
-Memcheck reports these errors as soon as they occur, giving the source line number at which it occurred, and also a stack trace of the functions called to reach that line. Memcheck tracks addressability at the byte-level, and initialisation of values at the bit-level. As a result, it can detect the use of single uninitialised bits, and does not report spurious errors in bitfield operations\*. Memcheck runs programs about 10-30x slower than normal.
+Memcheck reports these errors as soon as they occur, giving the source line number at which it occurred, and also a stack trace of the functions called to reach that line. Memcheck tracks addressability at the byte-level, and initialization of values at the bit-level. As a result, it can detect the use of single uninitialized bits, and does not report spurious errors in bitfield operations\*. Memcheck runs programs about 10-30x slower than normal.
 
 \* You likely have not worked with bitfield operations and likely will not unless you get into really low-level programming (primarily in C for firmware). 
 
@@ -44,7 +44,7 @@ Memcheck is the default tool so no tool flags are necessary. The `--leak-check` 
 Your program will run much slower (e.g. 20 - 30 times) than normal and use a lot more memory. Memcheck will issue messages about memory errors and leaks that it detects. 
 
 ## Examples
-Let's go over some simple examples of the types of errors you can uncover using Valgrind and how to interpret the error messages. We're going to start with a simple c++ program:
+Let's go over some simple examples of the types of errors you can uncover using Valgrind and how to interpret the error messages. We're going to start with a simple c++ program (save the file as simple.cpp):
 ```
 int main() {
     int *p = new int[10];
@@ -53,12 +53,13 @@ int main() {
     return 0;
 }
 ```
-This is a pretty typical introduction to pointers example from CS012. It also contains a **very** common memory management mistake. On line 2 we allocated a contiguous location in memory large enough for 10 `int`s and assigned the starting address to an `int` pointer `p`. The next line then uses pointer arithmetic to attempt to assign to the address 10 after `p`. This may seem fine since it's *seems* to be the last element in the array, however, due to 0-based addressing, the address of the last element is actual `p[9]`.
+This is a pretty typical introduction to pointers example from CS012. It also contains a **very** common memory management mistake. On line 2 we allocated a contiguous location in memory large enough for 10 `int`s and assigned the starting address to an `int` pointer `p`. The next line then uses pointer arithmetic to attempt to assign to the address 10 after `p`. This may seem fine since it *seems* to be the last element in the array, however, due to 0-based addressing, the address of the last element is actual `p[9]`.
 
 Now, let's compile the program:
 ```
-$g++ -g -O0 -o example1 *.cpp
+$g++ -g -O0 -o example1 simple.cpp
 ```
+
 And run it:
 ```
 $./example1
@@ -163,7 +164,7 @@ int main() {
 ```
 And compile and run again (I add a trick I frequently use, the `&&` means "execute the second command **only if** the first command **succeeds**):
 ```
-$g++ -g -O0 *.cpp -o example1 && ./example1
+$g++ -g -O0 simple.cpp -o example1 && ./example1
 ```
 Now your program should run to completion (you won't see any output). Woohoo! You fixed it...wait, there were two errors weren't there? Let's run it back through Valgrind and see:
 ```
@@ -211,9 +212,9 @@ The `new` operator allocates new memory, but we never deallocate that memory. Le
 *Yes I used the wrong delete but this was done on purpose, bear with me. If you didn't realize that was the wrong delete, that's exactly what this tool helps with so don't feel bad!*
 
 ### When a block is freed with an inappropriate deallocation function
- * If allocated with `malloc`, `calloc`, `realloc`, `valloc`, or `memalign`, you must deallocated with free\*.
- * If allocated with `new[]`, you must deallocated with `delete[]`.
- * If allocated with `new`, you must deallocated with `delete`.
+ * If allocated with `malloc`, `calloc`, `realloc`, `valloc`, or `memalign`, you must deallocate with free\*.
+ * If allocated with `new[]`, you must deallocate with `delete[]`.
+ * If allocated with `new`, you must deallocate with `delete`.
 
 \* These are typical in `C` as opposed to `C++` so you likely haven't seen them much at this point.
 
@@ -236,7 +237,7 @@ Let's run this through Valgrind again:
 ==14593== For counts of detected and suppressed errors, rerun with: -v
 ==14593== ERROR SUMMARY: 1 errors from 1 contexts (suppressed: 0 from 0)
 ```
-If we look at the summary it appears we freed all of the memory, however, if we look at the error list we will see that we used a `Mismatched free() / delete / delete []` at `operator delete(void*)` on line (`simple.cpp:5`) in the `main` function. And if we look at the additional information we can see the root is from `operator new[](unsigned long)` at line (`simple.cpp:2`) in the `main` function. Looking at these two operators as shown by Valgrind, we can see that we allocated with a `[]` but didn't deallocated with the same. Let's fix that now. 
+If we look at the summary it appears we freed all of the memory, however, if we look at the error list we will see that we used a `Mismatched free() / delete / delete []` at `operator delete(void*)` on line (`simple.cpp:5`) in the `main` function. And if we look at the additional information we can see the root is from `operator new[](unsigned long)` at line (`simple.cpp:2`) in the `main` function. Looking at these two operators as shown by Valgrind, we can see that we allocated with a `[]` but didn't deallocate with the same. Let's fix that now. 
 ```
 {
     int *p = new int[10];
@@ -290,7 +291,7 @@ Yes, it is again a silly examply, but it is used for illustrative purposes so be
 ```
 $g++ -g -O0 uninitialized.cpp -o example2 && ./example2
 ```
-You will *probably* get an output of 0 **but** I want to emphasize that this should not be expected and is not because of the C++ standard. `x` is still considered unintialised and you may very well get a junk value. Now, let's run it through Valgrind and see what happens:
+You will *probably* get an output of 0 **but** I want to emphasize that this should not be expected and is not because of the C++ standard. `x` is still considered unintialized and you may very well get a junk value. Now, let's run it through Valgrind and see what happens:
 ```
 ==14854== Conditional jump or move depends on uninitialised value(s)
 ==14854==    at 0x4F43B2A: std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_int<long>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, long) const (in /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.25)
@@ -355,7 +356,7 @@ Now let's look at that same error again (the second one):
 ==14904==  Uninitialised value was created by a stack allocation
 ==14904==    at 0x10888A: main (uninitialized.cpp:4)
 ```
-I've truncated the errors from the STL for brevity. You shouldn't need to dig into those in most errors. If you do, grab a cup of tea, clear your schedule for the week and get busy. No we can see that the new flag added some additional information:
+I've truncated the errors from the STL for brevity. You shouldn't need to dig into those in most errors. If you do, grab a cup of tea, clear your schedule for the week and get busy. Now we can see that the new flag added some additional information:
 ```
 ==14904==  Uninitialised value was created by a stack allocation
 ==14904==    at 0x10888A: main (uninitialized.cpp:4)
@@ -375,7 +376,7 @@ Now, compiling and running Valgrind again we can see that we achieved **Memcheck
 ==14973== For counts of detected and suppressed errors, rerun with: -v
 ==14973== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
 ```
-It is important to note here that Valgrind will let your program copy around junk data as much as it likes. Memcheck will observe and keep track of the data, but doesn't complain. It doesn't complain until the use of uninitialised data might affect your program's externally-visible behaviour. Experiment with the following program to see how the generated reports look:
+It is important to note here that Valgrind will let your program copy around junk data as much as it likes. Memcheck will observe and keep track of the data, but doesn't complain. It doesn't complain until the use of uninitialized data might affect your program's externally-visible behaviour. Experiment with the following program to see how the generated reports look:
 ```
 #include <iostream>
 using namespace std;
@@ -396,7 +397,7 @@ int main() {
 ```
 
 ### Illegal frees
-Memcheck will also track the memory that has been deallocated so if you try to re-deallocate memory (as in a double free) it will catch that and report it to you. Consider the following program:
+Memcheck will also track the memory that has been deallocated so if you try to re-deallocate memory (as in a double free) it will catch that and report it to you. Consider the following program (doubleFree.cpp):
 ```
 int main() {
     int *p = new int(10);
@@ -436,8 +437,8 @@ The first (and only) error shows us that we have an `Invalid free() / delete / d
 Memcheck has the following four leak kinds:
  * "Still reachable" - A start-pointer or chain of start-pointers to the block is found. The program could have *in theory* deallocated the memory.
  * "Definitely lost" - No pointer to the block can be found. There is no possible way to have deallocated this memory before the program exited. 
- * "Indirectly lost" - The block is not lost, not because there are no pointers to it, but rather because all the lbocks that point to it are themselves lost. For example, if you have a binary tree and the root node is lost, all it's children are indirectly lost. If you fixed the "definitely lost" block correctly these will be fixed as a side effect.
- * "Possibly lost" - A chain of one or more pointers to the block have been found, but at least one of them is an *interior* pointer. THis is typically not good unless, through inspection, you identify the interior pointer and now how to access this memory. 
+ * "Indirectly lost" - The block is not lost, not because there are no pointers to it, but rather because all the blocks that point to it are themselves lost. For example, if you have a binary tree and the root node is lost, all it's children are indirectly lost. If you fixed the "definitely lost" block correctly these will be fixed as a side effect.
+ * "Possibly lost" - A chain of one or more pointers to the block have been found, but at least one of them is an *interior* pointer. This is typically not good unless, through inspection, you identify the interior pointer and now how to access this memory. 
 
 A **start-pointer** is a pointer at the beginning of a block whereas an **interior-pointer** points somewhere in the middle of the block (intentionally or unintentionally), for example:
 ```
