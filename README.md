@@ -7,6 +7,8 @@ One of the most subtle and hard-to-detect bugs is the memory leak - the failure 
 ## Valgrind
 [Valgrind](https://valgrind.org/) is an instrumentation framework for building dynamic analysis tools. We will be focusing on the Memcheck tool in their extensive tool suite. 
 
+> Note: Valgrind is designed for Linux, but it is also compatible with some versions of Mac OS (unless you are running a very new version of the OS).  If you are performing this lab on Windows, it is recommended that you use `hammer` to run valgrind.
+
 ### Memcheck
 **Memcheck** detects memory-management problems, and is aimed primarily at C and C++ programs. When a program is run under Memcheck's supervision, all reads and writes of memory are checked, and calls to `malloc`/`new`/`free`/`delete` are *intercepted*. As a result, Memcheck can detect if your program:
  * Accesses memory it shouldn't (areas not yet allocated, areas that have been freed, areas past the end of heap blocks, inaccessible areas of the stack).
@@ -15,29 +17,27 @@ One of the most subtle and hard-to-detect bugs is the memory leak - the failure 
  * Does bad frees of heap blocks (double frees, mismatched frees).
  * Passes overlapping source and destination memory blocks to `memcpy()` and related functions.
 
-Memcheck reports these errors as soon as they occur, giving the source line number at which it occurred, and also a stack trace of the functions called to reach that line. Memcheck tracks addressability at the byte-level, and initialization of values at the bit-level. As a result, it can detect the use of single uninitialized bits, and does not report spurious errors in bitfield operations\*. Memcheck runs programs about 10-30x slower than normal.
-
-\* You likely have not worked with bitfield operations and likely will not unless you get into really low-level programming (primarily in C for firmware). 
+Memcheck reports these errors as soon as they occur, giving the source line number at which it occurred, and also a stack trace of the functions called to reach that line. Memcheck tracks valid addresses and initialization of values. As a result, it can detect the use of uninitialized memory. Memcheck runs programs about 10-30x slower than normal.
 
 ### Perparing your program
 Compile your program with the following flags:
  * `-g` - to include debugging information so that Memcheck's error messages include *exact* line numbers. 
- * `-O0` - to turn off all optimizations. Memcheck's error messages can be slightly inaccurate at `-O1` and can lead to spurious errors at `-O2` or above \*. 
+ * `-O0` - to turn off all optimizations. Memcheck's error messages can be slightly inaccurate at `-O1` and can lead to spurious errors at `-O2` or above. 
 
 For this lab the command: 
 ```
-$g++ -g -O0 *.cpp -o <exec_name>
+$ g++ -g -O0 *.cpp -o <exec_name>
 ```
 will be sufficient.
 
 ### Running your program under Memcheck
 The examples/exercises in this lab don't use command line arguments, but if your program is called like this:
 ```
-$./myprog arg1 arg2
+$ ./myprog arg1 arg2
 ```
 Then run Valgrind like this:
 ```
-$valgrind --leak-check=full ./myprog arg1 arg2
+$ valgrind --leak-check=full ./myprog arg1 arg2
 ```
 Memcheck is the default tool so no tool flags are necessary. The `--leak-check` option turns on the detailed memory leak detector. 
 
@@ -53,16 +53,16 @@ int main() {
     return 0;
 }
 ```
-This is a pretty typical introduction to pointers example from CS012. It also contains a **very** common memory management mistake. On line 2 we allocated a contiguous location in memory large enough for 10 `int`s and assigned the starting address to an `int` pointer `p`. The next line then uses pointer arithmetic to attempt to assign to the address 10 after `p`. This may seem fine since it *seems* to be the last element in the array, however, due to 0-based addressing, the address of the last element is actual `p[9]`.
+This is a pretty typical introduction to pointers example from CS012. It also contains a **very** common memory management mistake. On line 2 we allocated a contiguous location in memory large enough for 10 `int`s and assigned the starting address to an `int` pointer `p`. The next line then attempts to assign to the element with index 10. This may seem fine since it *seems* to be the last element in the array; however, due to 0-based addressing, the last element is actual `p[9]`.
 
 Now, let's compile the program:
 ```
-$g++ -g -O0 -o example1 simple.cpp
+$ g++ -g -O0 -o example1 simple.cpp
 ```
 
 And run it:
 ```
-$./example1
+$ ./example1
 ```
 You may get results similar to:
 ```
@@ -73,7 +73,7 @@ Aborted (core dumped)
 ```
 Or it might even run, either way figuring out your error is cryptic and difficult. Let's run it through Valgrind (you don't need to recompile):
 ```
-$valgrind ./example1
+$ valgrind --leak-check=full ./example1
 ```
 And you'll get a much more in detailed report of what is going on:
 ```
@@ -164,11 +164,11 @@ int main() {
 ```
 And compile and run again (I add a trick I frequently use, the `&&` means "execute the second command **only if** the first command **succeeds**):
 ```
-$g++ -g -O0 simple.cpp -o example1 && ./example1
+$ g++ -g -O0 simple.cpp -o example1 && ./example1
 ```
 Now your program should run to completion (you won't see any output). Woohoo! You fixed it...wait, there were two errors weren't there? Let's run it back through Valgrind and see:
 ```
-$valgrind ./example1
+$ valgrind ./example1
 ```
 And you'll see the following (tool information excluded for brevity): 
 ```
@@ -216,7 +216,7 @@ The `new` operator allocates new memory, but we never deallocate that memory. Le
  * If allocated with `new[]`, you must deallocate with `delete[]`.
  * If allocated with `new`, you must deallocate with `delete`.
 
-\* These are typical in `C` as opposed to `C++` so you likely haven't seen them much at this point.
+\* These are common in `C` but less commonly seen in `C++`, so you likely haven't seen them much at this point.
 
 Let's run this through Valgrind again:
 ```
@@ -258,13 +258,12 @@ And run Valgrind again:
 ==14620== For counts of detected and suppressed errors, rerun with: -v
 ==14620== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
 ```
-Now we're at what is called **Memcheck-clean**, we have `0 bytes in 0 blocks` in use at exit, `All heap blocks were freed -- no leaks are possible` and we have `0 errors from 0 contexts`. This is the goal of any program we write. We aren't always able to get to this point, but the closer we are the better. 
+Now we're at what is called **Memcheck-clean**, we have `0 bytes in 0 blocks` in use at exit, `All heap blocks were freed -- no leaks are possible` and we have `0 errors from 0 contexts`. This is the goal of any program we write.
 
-The final step, now that we're at **Memcheck-clean** is to re-run with optimizations turned back on:
+The final step, now that we're at **Memcheck-clean**, is to re-run with optimizations turned back on:
 ```
-$g++ -g -O<n> *.cpp -o example1
+$ g++ -g -O2 *.cpp -o example1
 ```
-Where \<n\> is replaced with the optimzation level you desire.
 
 Congratulations! You've successfully cleaned up a simple program from all memory leaks using the Memcheck tool in the Valgrind suite.
 ### Illegal read/illegal write errors
@@ -275,7 +274,7 @@ cout << p[10] << endl;
 We would have had a reported `Invalid read of size 4` at that line. The rest of that error message looks very similar to the `Invalide write` error. 
 
 ### Use of uninitialized values
-We have tried to emphasize that you always initialize your values, there really is no good reason not to. Nonetheless there are times that it happens (unintentional or not). Memcheck will catch these errors with a caveat. Let's look at the following program (`uninitialized.cpp`):
+As a general rule, you should always initialize your values. Nonetheless there are times that it happens (unintentional or not). Memcheck will catch these errors with a caveat. Let's look at the following program (`uninitialized.cpp`):
 ```
 #include <iostream>
 using namespace std;
@@ -289,9 +288,9 @@ int main() {
 ```
 Yes, it is again a silly examply, but it is used for illustrative purposes so bear with me. Let's compile and run this program:
 ```
-$g++ -g -O0 uninitialized.cpp -o example2 && ./example2
+$ g++ -g -O0 uninitialized.cpp -o example2 && ./example2
 ```
-You will *probably* get an output of 0 **but** I want to emphasize that this should not be expected and is not because of the C++ standard. `x` is still considered unintialized and you may very well get a junk value. Now, let's run it through Valgrind and see what happens:
+This should run and will print a number (often 0), **but** I want to emphasize that this should not be expected and is not because of the C++ standard. `x` is unintialized, and you may very well get a junk value. (I have graded a lot of assignments where students submitted programs that worked for them because their uninitialized variables happened to be zero.  When I graded them on my computer, they held junk values, and their programs failed.  The only way to be sure is to test your code under valgrind.) Now, let's run it through Valgrind and see what happens:
 ```
 ==14854== Conditional jump or move depends on uninitialised value(s)
 ==14854==    at 0x4F43B2A: std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_int<long>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, long) const (in /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.25)
@@ -344,7 +343,7 @@ Okay...so there is a *Conditional jump or move* somewhere that depends on an *un
 ```
 There it is, right at the top: `Use of unintialised value of size 8`. However, if we inspect the error message we see that it is at `???` by `std::ostreambuf...` by `std::ostream&...` by `main (uninitialized.cpp:6)`. That last *by...by...by* sequence is the stack trace. It's frequently a good idea to skip past all the library files and see what is the last function **you wrote** that caused that. We can see that in the `main` function on line 6 we set off this error. But we still don't know what caused it. We can see by inspecting line 6 `cout << x << endl;` that it is likely caused by the variable `x`, but that's about all we get. It turns out, we can add additional flags into the Valgrind call to get more out of this, specifically the `--track-origins=yes` flag:
 ```
-$valgrind --leak-check=full --track-origins=yes ./example2
+$ valgrind --leak-check=full --track-origins=yes ./example2
 ```
 Now let's look at that same error again (the second one):
 ```
@@ -396,6 +395,51 @@ int main() {
 }
 ```
 
+Another interesting example is this one:
+```
+#include <iostream>
+
+void foo(int x)
+{
+    std::cout<<x<<std::endl;
+}
+
+int main()
+{
+    int x;
+    int r=4;
+    int y=x+r;
+
+    foo(y);
+    
+    return 0;
+}
+```
+When I run this example, the valgrind report flags line 5 (the std::cout line), line 14 (the call to foo) in the stack trace.  It points to line 9 (the open brace on the main function) as the origin.  The origin is actually line 10, where the x is declared.  Note that the test for uninitialized values occurs when the value is used in a conditional, not on arithematic.  Thus, valgrind will not flag the computation of y.  A handy debugging trick is to insert "dummy" conditions to trigger the test, allowing you to test variables one by one to track down the problem.
+```
+#include <iostream>
+
+void foo(int x)
+{
+    std::cout<<x<<std::endl;
+}
+
+int zzzz=0; // dummy variable
+int main()
+{
+    int x;
+    int r=4;
+    int y=x+r;
+    if(x) zzzz++; // uninitialized error reported here
+    if(r) zzzz++;
+    if(y) zzzz++; // uninitialized error reported here
+
+    foo(y);
+    
+    return 0;
+}
+```
+
 ### Illegal frees
 Memcheck will also track the memory that has been deallocated so if you try to re-deallocate memory (as in a double free) it will catch that and report it to you. Consider the following program (doubleFree.cpp):
 ```
@@ -437,13 +481,13 @@ The first (and only) error shows us that we have an `Invalid free() / delete / d
 Memcheck has the following four leak kinds:
  * "Still reachable" - A start-pointer or chain of start-pointers to the block is found. The program could have *in theory* deallocated the memory.
  * "Definitely lost" - No pointer to the block can be found. There is no possible way to have deallocated this memory before the program exited. 
- * "Indirectly lost" - The block is not lost, not because there are no pointers to it, but rather because all the blocks that point to it are themselves lost. For example, if you have a binary tree and the root node is lost, all it's children are indirectly lost. If you fixed the "definitely lost" block correctly these will be fixed as a side effect.
+ * "Indirectly lost" - The block is lost, not because there are no pointers to it, but rather because all the blocks that point to it are themselves lost. For example, if you have a binary tree and the root node is lost, all it's children are indirectly lost. If you fixed the "definitely lost" block correctly these will be fixed as a side effect.
  * "Possibly lost" - A chain of one or more pointers to the block have been found, but at least one of them is an *interior* pointer. This is typically not good unless, through inspection, you identify the interior pointer and now how to access this memory. 
 
 A **start-pointer** is a pointer at the beginning of a block whereas an **interior-pointer** points somewhere in the middle of the block (intentionally or unintentionally), for example:
 ```
 int *p = new int[10]
-int *ip = p * 2;
+int *ip = p + 2;
 ```
  * `p` points to the beginning of the array and is a start-pointer
  * `ip` points to the middle of the array and is an interior-pointer
@@ -453,7 +497,7 @@ There are many more kinds of interior pointers and you can read more about them 
 ## Lab exercise
 Now use what you have learned from this lab to get the `lineage` program to **Memheck-clean**. The program is a simplified family tree manager. It maintains a list of `Person`s in a `PersonList`. Each `Person` object maintains a set of pointers to his/her parents as well as to his/her children. The code contains several memory leaks. To compile:
 ```
-$g++ -g -O0 -fno-inline *.cpp -o lineage
+$ g++ -g -O0 -fno-inline *.cpp -o lineage
 ```
 \* The -fno-inline instructs the compiler to not inline any functions and makes it easier to see the function call chain. 
 
