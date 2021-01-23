@@ -5,11 +5,11 @@
 using std::cout;
 using std::endl;
 
-Person::Person(char *name, Person* father, Person* mother){
-    this->name = new char[strlen(name)];
-    strcpy(this->name, name);
-    this->father = father;
-    this->mother = mother;
+Person::Person(const char *name_, Person* father_, Person* mother_){
+    name = new char[strlen(name_)];
+    strcpy(name, name_);
+    father = father_;
+    mother = mother_;
     capacity = 1;
     numChildren = 0;
     children = new Person*[capacity];
